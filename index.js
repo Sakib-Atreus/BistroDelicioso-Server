@@ -42,16 +42,6 @@ async function run() {
     // Cart Collection
 
     app.get("/carts", async (req, res) => {
-      const result = await cartCollection.find().toArray();
-      res.send(result);
-    });
-
-    app.get("/carts/:email", async (req, res) => {
-      const result = await cartCollection.find().toArray();
-      res.send(result);
-    });
-
-    app.get("/carts", async (req, res) => {
       const email = req.query.email;
       // console.log(email);
       if (!email) {
@@ -69,12 +59,22 @@ async function run() {
       res.send(result);
     });
 
-    app.delete('carts/:id', async(req, res) => {
-      const id = req.params.id;
-      const query = { _id: new ObjectId(id)};
-      const result = await cartCollection.deleteOne(query);
-      res.send(result);
-    })
+    app.delete('/carts/:id', async (req, res) => {
+      try {
+        const id = req.params.id;
+        const query = { _id: new ObjectId(id) }; // Convert id to ObjectId
+        const result = await cartCollection.deleteOne(query);
+        
+        if (result.deletedCount === 1) {
+          res.status(200).json({ message: "Item deleted successfully" });
+        } else {
+          res.status(404).json({ error: "Item not found" });
+        }
+      } catch (error) {
+        console.error("Error deleting item:", error);
+        res.status(500).json({ error: "Internal server error" });
+      }
+    });
 
     // Send a ping to confirm a successful connection
     await client.db("admin").command({ ping: 1 });
