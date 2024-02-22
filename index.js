@@ -12,18 +12,14 @@ app.use(express.json());
 const verifyJWT = (req, res, next) => {
   const authorization = req.headers.authorization;
   if (!authorization) {
-    return res
-      .status(401)
-      .send({ error: true, message: "unauthorized access" });
+    return res.status(401).send({ error: true, message: "unauthorized access" });
   }
   // bearer token
-  const token = authorization.split(" ")[1];
+  const token = authorization.split(' ')[1];
 
   jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, decoded) => {
     if (err) {
-      return res
-        .status(401)
-        .send({ error: true, message: "unauthorized access" });
+      return res.status(401).send({ error: true, message: "unauthorized access" });
     }
     req.decoded = decoded;
     next();
@@ -66,14 +62,17 @@ async function run() {
       const email = req.decoded.email;
       const query = {email: email}
       const user = await usersCollection.findOne(query);
-      if(user?.role !== 'admin'){
+      const isAdmin = user?.role === 'admin';
+      if(!isAdmin){
         return res.status(403).send({error: true, message: 'forbidden message'});
       }
-      next()
+      next();
     }
 
     /*
+     * 0. Do not show secure links to those who should not see the links
      * 1. use jwt token: verifyJWT
+     * 2. Use verifyAdmin middleware
      */
     //   ********   user related apis    *********
     app.get("/users", verifyJWT, verifyAdmin, async (req, res) => {
@@ -146,9 +145,7 @@ async function run() {
 
       const decodedEmail = req.decoded.email;
       if (email !== decodedEmail) {
-        return res
-          .status(403)
-          .send({ error: true, message: "forbidden access" });
+        return res.status(403).send({ error: true, message: "forbidden access" });
       }
 
       const query = { email: email };
