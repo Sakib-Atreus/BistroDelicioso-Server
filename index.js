@@ -12,14 +12,18 @@ app.use(express.json());
 const verifyJWT = (req, res, next) => {
   const authorization = req.headers.authorization;
   if (!authorization) {
-    return res.status(401).send({ error: true, message: "unauthorized access" });
+    return res
+      .status(401)
+      .send({ error: true, message: "unauthorized access" });
   }
   // bearer token
-  const token = authorization.split(' ')[1];
+  const token = authorization.split(" ")[1];
 
   jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, decoded) => {
     if (err) {
-      return res.status(401).send({ error: true, message: "unauthorized access" });
+      return res
+        .status(401)
+        .send({ error: true, message: "unauthorized access" });
     }
     req.decoded = decoded;
     next();
@@ -58,16 +62,18 @@ async function run() {
     });
 
     // Warning: use verifyJWT before using verifyAdmin
-    const verifyAdmin = async(req, res, next) => {
+    const verifyAdmin = async (req, res, next) => {
       const email = req.decoded.email;
-      const query = {email: email}
+      const query = { email: email };
       const user = await usersCollection.findOne(query);
-      const isAdmin = user?.role === 'admin';
-      if(!isAdmin){
-        return res.status(403).send({error: true, message: 'forbidden message'});
+      const isAdmin = user?.role === "admin";
+      if (!isAdmin) {
+        return res
+          .status(403)
+          .send({ error: true, message: "forbidden message" });
       }
       next();
-    }
+    };
 
     /*
      * 0. Do not show secure links to those who should not see the links
@@ -145,7 +151,9 @@ async function run() {
 
       const decodedEmail = req.decoded.email;
       if (email !== decodedEmail) {
-        return res.status(403).send({ error: true, message: "forbidden access" });
+        return res
+          .status(403)
+          .send({ error: true, message: "forbidden access" });
       }
 
       const query = { email: email };
