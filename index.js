@@ -3,6 +3,8 @@ const express = require("express");
 const app = express();
 const cors = require("cors");
 const jwt = require("jsonwebtoken");
+const nodemailer = require("nodemailer");
+const mg = require('nodemailer-mailgun-transport');
 const stripe = require('stripe')(process.env.PAYMENT_SECRET_KEY)
 const port = process.env.PORT || 5000;
 
@@ -10,6 +12,48 @@ const port = process.env.PORT || 5000;
 app.use(cors());
 app.use(express.json());
 
+
+// let transporter = nodemailer.createTransport({
+//   host: 'smtp.sendgrid.net',
+//   port: 587,
+//   auth: {
+//       user: process.env.EMAIL_PRIVATE_KEY,
+//       pass: process.env.EMAIL_DOMAIN_KEY
+//   }
+// })
+
+const auth = {
+  auth: {
+    api_key: process.env.EMAIL_PRIVATE_KEY,
+    domain: process.env.EMAIL_DOMAIN_KEY
+  }
+}
+
+const transporter = nodemailer.createTransport(mg(auth));
+
+
+// send payment confirmation email
+const sendPaymentConfirmationEmail = payment => {
+  transporter.sendMail({
+    from: "sakibatreus@gmail.com", // verified sender email
+    to: "sakibatreus@gmail.com", // recipient email
+    subject: "Your order is confirmed. Enjoy the food soon.", // Subject line
+    text: "Hello!", // plain text body
+    html: `
+    <div>
+      <h2>Payment Confirmed!!</h2>
+      <p>Transaction id: ${payment.transactionId}</p>
+    </div>`, // html body
+  }, function(error, info){
+    if (error) {
+      console.log(error);
+    } else {
+      console.log('Email sent: ' + info.response);
+    }
+  });
+}
+
+// JWT Verify Token
 const verifyJWT = (req, res, next) => {
   const authorization = req.headers.authorization;
   if (!authorization) {
@@ -225,8 +269,68 @@ async function run() {
       const query = { _id: { $in: payment.cartItems.map(id => new ObjectId(id)) }}
       const deleteResult = await cartCollection.deleteMany(query);
 
+      // send an email confirming order
+      sendPaymentConfirmationEmail(payment);
+
       res.send({ insertResult, deleteResult});
     })
+
+    // ************************************************************************
+
+    // User Home
+    app.get('user-stats', verifyJWT, async(req, res) => {
+      const products = await menuCollection.estimatedDocumentCount();
+      const orders = await cartCollection.estimatedDocumentCount();
+      const review = await reviewCollection.estimatedDocumentCount();
+
+      //  best way to get sum of the price field is to use group and sum operator
+
+      const payments = await paymentCollection.find().toArray();
+      const revenue = payments.reduce( ( sum, payment) => parseFloat(sum + payment.price), 0).toFixed(2)
+
+      res.send({
+        products,
+        orders,
+        review,
+        revenue
+      })
+    })
+
+    app.get('/user-order-stats', verifyJWT, async(req, res) => {
+      const pipeline = [
+        {
+          $lookup: {
+            from: 'menu',
+            localField: 'menuItems',
+            foreignField: '_id',
+            as: 'menuItemsData'
+          }
+        },
+        {
+          $unwind: '$menuItemsData'
+        },
+        {
+          $group: {
+            _id: '$menuItemsData.category',
+            count: { $sum: 1},
+            total: { $sum: '$menuItemsData.price' }
+          }
+        },
+        {
+          $project: {
+            category: '$_id',
+            count: 1,
+            total: { $round: ['$total', 2] },
+            _id: 0
+          }
+        }
+      ];
+
+      const result = await paymentCollection.aggregate(pipeline).toArray();
+      res.send(result);
+    })
+
+    // ******************************************************************************
 
     // Admin Home
     app.get('/admin-stats', verifyJWT, verifyAdmin, async(req, res) => {
